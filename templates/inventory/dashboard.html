@@ -1,0 +1,217 @@
+{% extends 'inventory/base.html' %}
+
+{% block title %}Dashboard - Korfleet Inventory{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <h1>Dashboard</h1>
+    
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">📦</div>
+            <div class="stat-info">
+                <h3>{{ total_items }}</h3>
+                <p>Stock</p>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">📤</div>
+            <div class="stat-info">
+                <h3>{{ total_issued }}</h3>
+                <p>Total Items Issued</p>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">📥</div>
+            <div class="stat-info">
+                <h3>{{ total_increased }}</h3>
+                <p>Total Items Received</p>
+            </div>
+        </div>
+        
+        <div class="stat-card">
+            <div class="stat-icon">📊</div>
+            <div class="stat-info">
+                <h3>{{ category_counts|length }}</h3>
+                <p>Categories</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="dashboard-grid">
+        <div class="dashboard-card">
+            <h2>Items Available</h2>
+            <canvas id="availableChart"></canvas>
+        </div>
+        
+        <div class="dashboard-card">
+            <h2>Inventory by Category</h2>
+            <canvas id="categoryChart"></canvas>
+        </div>
+    </div>
+    
+    <div class="dashboard-grid">
+        <div class="dashboard-card">
+            <h2>Usage by Category</h2>
+            <canvas id="usageChart"></canvas>
+        </div>
+    </div>
+    
+    <div class="dashboard-grid">
+        <div class="dashboard-card">
+            <h2>Recently Issued Items</h2>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Quantity</th>
+                        <th>Date</th>
+                        <th>Issued By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for transaction in recently_issued %}
+                    <tr>
+                        <td>{{ transaction.item.name }}</td>
+                        <td>{{ transaction.quantity }}</td>
+                        <td>{{ transaction.date_taken|date:"M d, Y" }}</td>
+                        <td>{{ transaction.issued_by.username|default:"N/A" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4">No transactions yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <div class="dashboard-grid">
+        <div class="dashboard-card">
+            <h2>Recently Received Items</h2>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Quantity</th>
+                        <th>Date</th>
+                        <th>Received By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for transaction in recently_increased %}
+                    <tr>
+                        <td>{{ transaction.item.name }}</td>
+                        <td>{{ transaction.quantity }}</td>
+                        <td>{{ transaction.date_taken|date:"M d, Y" }}</td>
+                        <td>{{ transaction.issued_by.username|default:"N/A" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4">No receipts yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Items Available Pie Chart
+    const availableCtx = document.getElementById('availableChart').getContext('2d');
+    const availableData = JSON.parse('{{ available_by_item|escapejs }}');
+    
+    // Generate colors for pie chart
+    const colorPalette = [
+        '#FF6B35', '#28A745', '#17A2B8', '#FFC107', '#DC3545', '#6F42C1',
+        '#20C997', '#FD7E14', '#E83E8C', '#6C757D', '#FF8C42', '#FFA366',
+        '#FFB88C', '#FFD4B3', '#FFE5D9', '#28A745', '#20C997', '#17A2B8'
+    ];
+    
+    const itemLabels = Object.keys(availableData);
+    const itemValues = Object.values(availableData);
+    const itemColors = itemLabels.map((_, index) => colorPalette[index % colorPalette.length]);
+    
+    new Chart(availableCtx, {
+        type: 'pie',
+        data: {
+            labels: itemLabels,
+            datasets: [{
+                data: itemValues,
+                backgroundColor: itemColors,
+                borderWidth: 2,
+                borderColor: '#FFFFFF'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'right'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.parsed || 0;
+                            return label + ': ' + value + ' available';
+                        }
+                    }
+                }
+            }
+        }
+    });
+    
+    // Category Distribution Chart
+    const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+    const categoryData = JSON.parse('{{ category_distribution|escapejs }}');
+    
+    new Chart(categoryCtx, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(categoryData),
+            datasets: [{
+                data: Object.values(categoryData),
+                backgroundColor: [
+                    '#FF6B35', '#FF8C42', '#FFA366', '#FFB88C', '#FFD4B3', '#FFE5D9'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true
+        }
+    });
+    
+    // Usage by Category Chart
+    const usageCtx = document.getElementById('usageChart').getContext('2d');
+    const usageData = JSON.parse('{{ usage_by_category|escapejs }}');
+    
+    new Chart(usageCtx, {
+        type: 'bar',
+        data: {
+            labels: Object.keys(usageData),
+            datasets: [{
+                label: 'Items Used',
+                data: Object.values(usageData),
+                backgroundColor: '#FF6B35'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

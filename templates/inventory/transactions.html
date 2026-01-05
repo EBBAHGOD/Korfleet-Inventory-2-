@@ -1,0 +1,77 @@
+{% extends 'inventory/base.html' %}
+
+{% block title %}Transactions - Korfleet{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Inventory Transactions</h1>
+    <a href="{% url 'inventory:stock_out' %}" class="btn btn-primary">Issue Stock</a>
+</div>
+
+<div class="filters">
+    <form method="get" class="filter-form">
+        <input type="date" name="start_date" value="{{ start_date }}" class="form-control" placeholder="Start Date">
+        <input type="date" name="end_date" value="{{ end_date }}" class="form-control" placeholder="End Date">
+        <select name="type" class="form-control">
+            <option value="">All Types</option>
+            <option value="OUT" {% if transaction_type == 'OUT' %}selected{% endif %}>Stock Out</option>
+            <option value="IN" {% if transaction_type == 'IN' %}selected{% endif %}>Stock In</option>
+        </select>
+        <button type="submit" class="btn btn-secondary">Filter</button>
+        <a href="{% url 'inventory:transactions' %}" class="btn btn-outline">Clear</a>
+    </form>
+</div>
+
+<div class="table-container">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Item</th>
+                <th>Category</th>
+                <th>Type</th>
+                <th>Quantity</th>
+                <th>Purpose</th>
+                <th>Issued By</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for transaction in page_obj %}
+            <tr>
+                <td>{{ transaction.date_taken|date:"M d, Y H:i" }}</td>
+                <td><strong>{{ transaction.item.name }}</strong></td>
+                <td>{{ transaction.item.category }}</td>
+                <td>
+                    <span class="badge {% if transaction.transaction_type == 'OUT' %}badge-danger{% else %}badge-success{% endif %}">
+                        {{ transaction.get_transaction_type_display }}
+                    </span>
+                </td>
+                <td>{{ transaction.quantity }}</td>
+                <td>{{ transaction.purpose|default:"-" }}</td>
+                <td>{{ transaction.issued_by.username|default:"N/A" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="text-center">No transactions found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if page_obj.has_other_pages %}
+<div class="pagination">
+    {% if page_obj.has_previous %}
+        <a href="?page=1{% if start_date %}&start_date={{ start_date }}{% endif %}{% if end_date %}&end_date={{ end_date }}{% endif %}{% if transaction_type %}&type={{ transaction_type }}{% endif %}" class="btn btn-sm">First</a>
+        <a href="?page={{ page_obj.previous_page_number }}{% if start_date %}&start_date={{ start_date }}{% endif %}{% if end_date %}&end_date={{ end_date }}{% endif %}{% if transaction_type %}&type={{ transaction_type }}{% endif %}" class="btn btn-sm">Previous</a>
+    {% endif %}
+    
+    <span>Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    
+    {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if start_date %}&start_date={{ start_date }}{% endif %}{% if end_date %}&end_date={{ end_date }}{% endif %}{% if transaction_type %}&type={{ transaction_type }}{% endif %}" class="btn btn-sm">Next</a>
+        <a href="?page={{ page_obj.paginator.num_pages }}{% if start_date %}&start_date={{ start_date }}{% endif %}{% if end_date %}&end_date={{ end_date }}{% endif %}{% if transaction_type %}&type={{ transaction_type }}{% endif %}" class="btn btn-sm">Last</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

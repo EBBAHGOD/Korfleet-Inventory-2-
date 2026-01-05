@@ -1,0 +1,51 @@
+{% extends 'inventory/base.html' %}
+
+{% block title %}Receipt Stock - Korfleet{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <h1>Receipt Stock</h1>
+    
+    {% if item %}
+    <div class="item-info">
+        <h3>{{ item.name }}</h3>
+        <p><strong>Category:</strong> {{ item.category }}</p>
+        <p><strong>Current Quantity:</strong> <span class="badge badge-info">{{ current_qty }}</span></p>
+    </div>
+    {% endif %}
+    
+    <form method="post" class="form">
+        {% csrf_token %}
+        
+        {% if not item %}
+        <div class="form-group">
+            <label for="item_id">Select Item <span class="required">*</span></label>
+            <select id="item_id" name="item_id" required class="form-control">
+                <option value="">Select Item</option>
+                {% for itm in items %}
+                <option value="{{ itm.id }}" data-qty="{{ itm.quantity }}">{{ itm.name }} (Current: {{ itm.quantity }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% else %}
+        <input type="hidden" name="item_id" value="{{ item.id }}">
+        {% endif %}
+        
+        <div class="form-group">
+            <label for="quantity">Quantity to Add <span class="required">*</span></label>
+            <input type="number" id="quantity" name="quantity" value="1" min="1" required class="form-control">
+        </div>
+        
+        <div class="form-group">
+            <label for="purpose">Purpose / Reason</label>
+            <textarea id="purpose" name="purpose" rows="3" class="form-control" placeholder="Optional: Enter reason for receiving this item"></textarea>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Receipt Stock</button>
+            <a href="{% url 'inventory:inventory_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+

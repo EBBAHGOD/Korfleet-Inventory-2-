@@ -1,0 +1,171 @@
+{% extends 'inventory/base.html' %}
+
+{% block title %}Reports - Korfleet{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Inventory Reports</h1>
+    <div style="display: flex; gap: 0.5rem;">
+        <a href="{% url 'inventory:export_report_csv' %}?start_date={{ start_date }}&end_date={{ end_date }}" class="btn btn-secondary">Export CSV</a>
+        <a href="{% url 'inventory:export_report_excel' %}?start_date={{ start_date }}&end_date={{ end_date }}" class="btn btn-primary">Export Excel</a>
+    </div>
+</div>
+
+<div class="filters">
+    <form method="get" class="filter-form">
+        <input type="date" name="start_date" value="{{ start_date }}" class="form-control" required>
+        <input type="date" name="end_date" value="{{ end_date }}" class="form-control" required>
+        <button type="submit" class="btn btn-secondary">Generate Report</button>
+    </form>
+</div>
+
+<div class="report-summary">
+    <div class="summary-card">
+        <h3>Total Items Used</h3>
+        <p class="summary-value">{{ total_used }}</p>
+    </div>
+    
+    <div class="summary-card">
+        <h3>Total Items Received</h3>
+        <p class="summary-value">{{ total_increased }}</p>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2>Items Taken Out During Period</h2>
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Item Name</th>
+                    <th>Category</th>
+                    <th>Total Quantity Issued</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item_name, data in items_taken_out_summary.items %}
+                <tr>
+                    <td>{{ item_name }}</td>
+                    <td>{{ data.category }}</td>
+                    <td><strong>{{ data.total_quantity }}</strong></td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="3" class="text-center">No items taken out in this period.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2>Items Received During Period</h2>
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Item Name</th>
+                    <th>Category</th>
+                    <th>Total Quantity Received</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item_name, data in items_received_summary.items %}
+                <tr>
+                    <td>{{ item_name }}</td>
+                    <td>{{ data.category }}</td>
+                    <td><strong>{{ data.total_quantity }}</strong></td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="3" class="text-center">No items received in this period.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2>Quantity Used and Received Per Item</h2>
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Item Name</th>
+                    <th>Category</th>
+                    <th>Total Quantity Used</th>
+                    <th>Total Quantity Received</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item_name, data in usage_per_item.items %}
+                <tr>
+                    <td>{{ item_name }}</td>
+                    <td>{{ data.category }}</td>
+                    <td><strong>{{ data.quantity }}</strong></td>
+                    <td><strong>{{ data.increased }}</strong></td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="text-center">No usage data for this period.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2>Usage Summary by Category</h2>
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Category</th>
+                    <th>Total Quantity Used</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for category, quantity in usage_by_category.items %}
+                <tr>
+                    <td>{{ category }}</td>
+                    <td><strong>{{ quantity }}</strong></td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="2" class="text-center">No usage data for this period.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="report-section">
+    <h2>Receipts Summary by Category</h2>
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Category</th>
+                    <th>Total Quantity Received</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for category, quantity in increases_by_category.items %}
+                <tr>
+                    <td>{{ category }}</td>
+                    <td><strong>{{ quantity }}</strong></td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="2" class="text-center">No receipts for this period.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

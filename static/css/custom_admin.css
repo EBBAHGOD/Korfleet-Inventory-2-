@@ -1,0 +1,14 @@
+/* Resize login page logo */
+.login-logo img {
+    max-width: 200px;
+    height: auto;
+}
+
+/* Optional: center it nicely */
+.login-logo {
+    text-align: center;
+}
+
+body {
+    background-color: rgb(0, 0, 0) ;
+}

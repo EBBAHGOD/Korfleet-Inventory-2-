@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Korfleet Inventory Management{% endblock %}</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    {% if user.is_authenticated %}
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <h1>Korfleet</h1>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="{% url 'inventory:dashboard' %}">Dashboard</a></li>
+                <li><a href="{% url 'inventory:inventory_list' %}">Inventory</a></li>
+                <li><a href="{% url 'inventory:transactions' %}">Transactions</a></li>
+                <li><a href="{% url 'inventory:reports' %}">Reports</a></li>
+                <li><a href="{% url 'inventory:logout' %}">Logout ({{ user.username }})</a></li>
+            </ul>
+        </div>
+    </nav>
+    {% endif %}
+    
+    <main class="main-content">
+        {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        
+        {% block content %}
+        {% endblock %}
+    </main>
+    
+    <footer class="footer">
+        <p>&copy; 2025 Korfleet Inventory Management System</p>
+    </footer>
+    
+    {% block scripts %}
+    {% endblock %}
+</body>
+</html>
