@@ -112,6 +112,12 @@ body {
     border: 1px solid #FFEAA7;
 }
 
+/* utility links */
+a.no-underline {
+    text-decoration: none !important;
+    color: inherit;
+}
+
 /* Buttons */
 .btn {
     display: inline-block;

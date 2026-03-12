@@ -10,8 +10,8 @@
         <div class="stat-card">
             <div class="stat-icon">📦</div>
             <div class="stat-info">
-                <h3>{{ total_items }}</h3>
-                <p>Stock</p>
+                <h3>{{ total_units }}</h3>
+                <p>Total Units in Stock</p>
             </div>
         </div>
         
@@ -47,7 +47,7 @@
         </div>
         
         <div class="dashboard-card">
-            <h2>Inventory by Category</h2>
+            <h2>Available Inventory by Category</h2>
             <canvas id="categoryChart"></canvas>
         </div>
     </div>
@@ -185,7 +185,18 @@
         },
         options: {
             responsive: true,
-            maintainAspectRatio: true
+            maintainAspectRatio: true,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.parsed || 0;
+                            return label + ': ' + value + ' available';
+                        }
+                    }
+                }
+            }
         }
     });
     

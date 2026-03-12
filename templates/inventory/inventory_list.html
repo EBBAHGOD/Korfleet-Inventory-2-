@@ -27,7 +27,9 @@
         <thead>
             <tr>
                 <th>Name</th>
+                <th>Brand</th>
                 <th>Category</th>
+                <th>Total Items</th>
                 <th>Available</th>
                 <th>Actions</th>
             </tr>
@@ -35,8 +37,14 @@
         <tbody>
             {% for item in page_obj %}
             <tr>
-                <td><strong>{{ item.name }}</strong></td>
+                <td><strong><a class="no-underline" href="{% url 'inventory:inventory_item_detail' item.id %}">{{ item.name }}</a></strong></td>
+                <td>{{ item.brand|default:"-" }}</td>
                 <td>{{ item.category }}</td>
+                <td>
+                    <span class="badge badge-info">
+                        {{ item.total_qty }}
+                    </span>
+                </td>
                 <td>
                     <span class="badge {% if item.available_qty > 0 %}badge-success{% else %}badge-danger{% endif %}">
                         {{ item.available_qty }}
@@ -50,7 +58,8 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="4" class="text-center">No items found.</td>
+                <!-- six columns: name, brand, category, total, available, actions -->
+                <td colspan="6" class="text-center">No items found.</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -59,6 +68,9 @@
 
 {% if page_obj.has_other_pages %}
 <div class="pagination">
+<style>
+    a.no-underline { text-decoration: none; color: inherit; }
+</style>
     {% if page_obj.has_previous %}
         <a href="?page=1{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}" class="btn btn-sm">First</a>
         <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&search={{ search_query }}{% endif %}{% if category_filter %}&category={{ category_filter }}{% endif %}" class="btn btn-sm">Previous</a>

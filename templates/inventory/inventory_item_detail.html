@@ -1,0 +1,49 @@
+{% extends 'inventory/base.html' %}
+
+{% block title %}{{ item.name }} Details - Korfleet{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>{{ item.name }} &ndash; Objects</h1>
+    <a href="{% url 'inventory:inventory_list' %}" class="btn btn-secondary">Back to Inventory</a>
+</div>
+
+<div class="table-container">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>IMEI / Serial</th>
+                <th>Brand</th>
+                <th>Condition</th>
+                <th>Status</th>
+                <th>Price</th>
+                <th>Date Added</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for obj in serialized_items %}
+            <tr>
+                <td><code>{{ obj.imei }}</code></td>
+                <td>{{ obj.brand|default:"-" }}</td>
+                <td>{{ obj.condition }}</td>
+                <td>
+                    {% if obj.condition == 'Faulty' %}
+                    <span class="badge badge-dark">Faulty</span>
+                    {% elif obj.status == 'Available' %}
+                    <span class="badge badge-success">{{ obj.status }}</span>
+                    {% else %}
+                    <span class="badge badge-danger">{{ obj.status }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ obj.price|default:"-" }}</td>
+                <td>{{ obj.date_added|date:"M d, Y" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="text-center">No serialized items found for this inventory item.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

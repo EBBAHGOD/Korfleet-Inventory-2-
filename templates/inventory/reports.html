@@ -32,6 +32,49 @@
 </div>
 
 <div class="report-section">
+    <h2>Opening &amp; Closing Balances ({{ start_date }} — {{ end_date }})</h2>
+    <div class="summary-card">
+        <h4>Total Opening Balance</h4>
+        <p class="summary-value">{{ total_opening }}</p>
+    </div>
+    <div class="summary-card">
+        <h4>Total Closing Balance</h4>
+        <p class="summary-value">{{ total_closing }}</p>
+    </div>
+
+    <div class="table-container" style="margin-top:1rem;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Item Name</th>
+                    <th>Category</th>
+                    <th>Opening Qty</th>
+                    <th>Closing Qty</th>
+                    <th>Current Qty</th>
+                    <th>Net Movement</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item_name, data in item_balances.items %}
+                <tr>
+                    <td>{{ item_name }}</td>
+                    <td>{{ data.category }}</td>
+                    <td>{{ data.opening }}</td>
+                    <td>{{ data.closing }}</td>
+                    <td>{{ data.current }}</td>
+                    <td>{{ data.movement }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="text-center">No balance data available.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="report-section">
     <h2>Items Taken Out During Period</h2>
     <div class="table-container">
         <table class="data-table">

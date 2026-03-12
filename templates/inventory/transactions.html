@@ -5,7 +5,11 @@
 {% block content %}
 <div class="page-header">
     <h1>Inventory Transactions</h1>
-    <a href="{% url 'inventory:stock_out' %}" class="btn btn-primary">Issue Stock</a>
+    <div style="display: flex; gap: 10px;">
+        <a href="{% url 'inventory:stock_out' %}" class="btn btn-primary">Issue Stock</a>
+        <a href="{% url 'inventory:stock_in' %}" class="btn btn-success">Receipt Stock</a>
+        <a href="{% url 'inventory:bulk_upload' %}" class="btn btn-info">Bulk Upload</a>
+    </div>
 </div>
 
 <div class="filters">
@@ -28,9 +32,11 @@
             <tr>
                 <th>Date</th>
                 <th>Item</th>
+                <th>IMEI / Serial</th>
+                <th>Brand</th>
                 <th>Category</th>
                 <th>Type</th>
-                <th>Quantity</th>
+                <th>Condition</th>
                 <th>Purpose</th>
                 <th>Issued By</th>
             </tr>
@@ -40,13 +46,33 @@
             <tr>
                 <td>{{ transaction.date_taken|date:"M d, Y H:i" }}</td>
                 <td><strong>{{ transaction.item.name }}</strong></td>
+                <td>
+                    {% if transaction.serialized_item %}
+                        <code>{{ transaction.serialized_item.imei }}</code>
+                    {% else %}
+                        <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if transaction.serialized_item %}
+                        {{ transaction.serialized_item.brand|default:"-" }}
+                    {% else %}
+                        <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
                 <td>{{ transaction.item.category }}</td>
                 <td>
                     <span class="badge {% if transaction.transaction_type == 'OUT' %}badge-danger{% else %}badge-success{% endif %}">
                         {{ transaction.get_transaction_type_display }}
                     </span>
                 </td>
-                <td>{{ transaction.quantity }}</td>
+                <td>
+                    {% if transaction.serialized_item %}
+                        {{ transaction.serialized_item.condition }}
+                    {% else %}
+                        <span class="text-muted">-</span>
+                    {% endif %}
+                </td>
                 <td>{{ transaction.purpose|default:"-" }}</td>
                 <td>{{ transaction.issued_by.username|default:"N/A" }}</td>
             </tr>
@@ -73,5 +99,18 @@
         <a href="?page={{ page_obj.paginator.num_pages }}{% if start_date %}&start_date={{ start_date }}{% endif %}{% if end_date %}&end_date={{ end_date }}{% endif %}{% if transaction_type %}&type={{ transaction_type }}{% endif %}" class="btn btn-sm">Last</a>
     {% endif %}
 </div>
+
+<style>
+    code {
+        background-color: #f5f5f5;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: monospace;
+    }
+    
+    .text-muted {
+        color: #999;
+    }
+</style>
 {% endif %}
 {% endblock %}

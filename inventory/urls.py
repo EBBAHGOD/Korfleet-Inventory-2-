@@ -11,6 +11,8 @@ urlpatterns = [
     
     # Dashboard
     path('dashboard/', views.dashboard, name='dashboard'),
+    # authentication and password helpers
+    path('change-password/', views.change_password, name='change_password'),
     
     # Inventory Management
     path('inventory/', views.inventory_list, name='inventory_list'),
@@ -21,6 +23,9 @@ urlpatterns = [
     # Stock-out / Stock-in / Transactions
     path('stock-out/', views.stock_out, name='stock_out'),
     path('stock-in/', views.stock_in, name='stock_in'),
+    path('bulk-upload/', views.bulk_upload, name='bulk_upload'),
+    path('bulk-upload-template/', views.bulk_upload_template, name='bulk_upload_template'),
+    path('item/<int:item_id>/', views.inventory_item_detail, name='inventory_item_detail'),
     path('transactions/', views.transactions, name='transactions'),
     
     # Reports

@@ -13,7 +13,9 @@
     <nav class="navbar">
         <div class="nav-container">
             <div class="nav-brand">
-                <h1>Korfleet</h1>
+                <a href="{% url 'inventory:dashboard' %}" class="brand-link">
+                    <img src="{% static 'Images/korfleet-logo.jpg' %}" alt="Korfleet Logo" style="height:40px;">
+                </a>
             </div>
             <ul class="nav-menu">
                 <li><a href="{% url 'inventory:dashboard' %}">Dashboard</a></li>

@@ -4,13 +4,18 @@
 
 {% block content %}
 <div class="form-container">
-    <h1>Receipt Stock</h1>
+    <h1>Receipt Stock - Add Individual Items</h1>
+    
+    <!-- Bulk Upload Button -->
+    <div style="margin-bottom: 20px;">
+        <a href="{% url 'inventory:bulk_upload' %}" class="btn btn-success">Bulk Upload Items</a>
+        <a href="{% url 'inventory:bulk_upload_template' %}" class="btn btn-info" target="_blank">Download Template</a>
+    </div>
     
     {% if item %}
     <div class="item-info">
         <h3>{{ item.name }}</h3>
         <p><strong>Category:</strong> {{ item.category }}</p>
-        <p><strong>Current Quantity:</strong> <span class="badge badge-info">{{ current_qty }}</span></p>
     </div>
     {% endif %}
     
@@ -23,7 +28,7 @@
             <select id="item_id" name="item_id" required class="form-control">
                 <option value="">Select Item</option>
                 {% for itm in items %}
-                <option value="{{ itm.id }}" data-qty="{{ itm.quantity }}">{{ itm.name }} (Current: {{ itm.quantity }})</option>
+                <option value="{{ itm.id }}">{{ itm.name }} - {{ itm.category }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -32,8 +37,34 @@
         {% endif %}
         
         <div class="form-group">
-            <label for="quantity">Quantity to Add <span class="required">*</span></label>
-            <input type="number" id="quantity" name="quantity" value="1" min="1" required class="form-control">
+            <label for="imei">IMEI / Serial Number <span class="required">*</span></label>
+            <input type="text" id="imei" name="imei" required class="form-control" placeholder="Enter unique IMEI/Serial number">
+            <small class="form-text">Must be unique across the system</small>
+        </div>
+        
+        <div class="form-group">
+            <label for="price">Price (Optional)</label>
+            <input type="number" id="price" name="price" step="0.01" class="form-control" placeholder="Enter price">
+        </div>
+        <div class="form-group">
+            <label for="brand">Brand (Optional)</label>
+            <input type="text" id="brand" name="brand" class="form-control" placeholder="Enter brand/manufacturer">
+        </div>
+        
+        <div class="form-group">
+            <label for="condition">Condition <span class="required">*</span></label>
+            <select id="condition" name="condition" required class="form-control">
+                <option value="">Select Condition</option>
+                {% for code, label in conditions %}
+                <option value="{{ code }}">{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="date_added">Date Added (Optional)</label>
+            <input type="date" id="date_added" name="date_added" class="form-control">
+            <small class="form-text">Defaults to today if not provided</small>
         </div>
         
         <div class="form-group">
@@ -42,10 +73,57 @@
         </div>
         
         <div class="form-actions">
-            <button type="submit" class="btn btn-primary">Receipt Stock</button>
+            <button type="submit" class="btn btn-primary">Add Item</button>
+            {% if item %}
+            <a href="{% url 'inventory:stock_in' %}" class="btn btn-secondary">Back</a>
+            {% endif %}
             <a href="{% url 'inventory:inventory_list' %}" class="btn btn-secondary">Cancel</a>
         </div>
     </form>
+    
+    {% if item %}
+    <hr>
+    <h3>Recent Items Added - {{ item.name }}</h3>
+    <div class="table-responsive">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>IMEI</th>
+                    <th>Condition</th>
+                    <th>Price</th>
+                    <th>Status</th>
+                    <th>Date Added</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for serialized_item in item.serialized_items.all|slice:":10" %}
+                <tr>
+                    <td>{{ serialized_item.imei }}</td>
+                    <td>{{ serialized_item.brand|default:"-" }}</td>
+                    <td>{{ serialized_item.condition }}</td>
+                    <td>{{ serialized_item.price|default:"N/A" }}</td>
+                    <td><span class="badge badge-{% if serialized_item.status == 'Available' %}success{% else %}danger{% endif %}">{{ serialized_item.status }}</span></td>
+                    <td>{{ serialized_item.date_added|date:"Y-m-d" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
 </div>
+
+<script>
+    // Set default date to today
+    document.addEventListener('DOMContentLoaded', function() {
+        const dateInput = document.getElementById('date_added');
+        if (dateInput && !dateInput.value) {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            dateInput.value = `${year}-${month}-${day}`;
+        }
+    });
+</script>
 {% endblock %}
 

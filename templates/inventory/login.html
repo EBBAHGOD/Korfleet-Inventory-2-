@@ -40,7 +40,8 @@
                 <button type="submit" class="btn btn-primary btn-block">Login</button>
                 
                 <div class="auth-links">
-                    <a href="{% url 'admin:login' %}">Login as Admin</a>
+                    
+                    <a href="{% url 'admin:login' %}?next={% url 'admin:index' %}">Login as Admin</a>
                 </div>
             </form>
         </div>

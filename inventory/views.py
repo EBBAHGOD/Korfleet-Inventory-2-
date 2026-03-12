@@ -14,7 +14,7 @@ import csv
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill
 from openpyxl.utils import get_column_letter
-from .models import InventoryItem, InventoryTransaction
+from .models import InventoryItem, InventoryTransaction, SerializedItem
 
 
 def root_view(request):
@@ -25,7 +25,13 @@ def root_view(request):
 
 
 def login_view(request):
-    """User login view"""
+    """User login view.
+
+    Staff users are no longer auto-forwarded to the Django admin; the
+    application behaviour is to land everyone on the inventory dashboard
+    after a successful login.  The admin link remains available in the
+    interface for those who need it.
+    """
     if request.user.is_authenticated:
         return redirect('inventory:dashboard')
     
@@ -37,6 +43,7 @@ def login_view(request):
         if user is not None:
             login(request, user)
             messages.success(request, f'Welcome back, {user.username}!')
+            # always send logged‑in users to the dashboard
             return redirect('inventory:dashboard')
         else:
             messages.error(request, 'Invalid username or password.')
@@ -70,12 +77,63 @@ def forgot_password_view(request):
 
 
 @login_required
+def change_password(request):
+    """Allow an authenticated user to change their password.
+
+    This works together with the ForcePasswordChangeMiddleware and the
+    UserProfile.force_password_change flag. On successful change the flag is
+    cleared so the user can access the rest of the system.
+    """
+    if request.method == 'POST':
+        current_password = request.POST.get('current_password')
+        new_password = request.POST.get('new_password')
+        confirm_password = request.POST.get('confirm_password')
+
+        # Basic validations
+        if not current_password or not new_password or not confirm_password:
+            messages.error(request, 'All password fields are required.')
+            return render(request, 'in[o9entory/change_password.html')
+
+        if not request.user.check_password(current_password):
+            messages.error(request, 'Current password is incorrect.')
+            return render(request, 'inventory/change_password.html')
+
+        if new_password != confirm_password:
+            messages.error(request, 'New password and confirmation do not match.')
+            return render(request, 'inventory/change_password.html')
+
+        # Update the password
+        request.user.set_password(new_password)
+        request.user.save()
+
+        # Clear the force_password_change flag if profile exists
+        profile = getattr(request.user, 'profile', None)
+        if profile:
+            profile.force_password_change = False
+            profile.save()
+
+        # Re-authenticate the user after password change
+        user = authenticate(username=request.user.username, password=new_password)
+        if user is not None:
+            login(request, user)
+
+        messages.success(request, 'Your password has been updated successfully.')
+        return redirect('inventory:dashboard')
+
+    return render(request, 'inventory/change_password.html')
+
+
+@login_required
 def dashboard(request):
     """Interactive dashboard with statistics and charts"""
-    # Total items in inventory
-    total_items = InventoryItem.objects.count()
-    
-    # Inventory count per category
+    # Total units in stock is simply the count of serialized records.  The
+    # UI card on the dashboard uses ``total_units`` and tests rely on that
+    # name, so we compute it explicitly here (legacy quantities are ignored
+    # whenever any serialized items exist, which matches
+    # ``InventoryItem.total_qty`` behaviour).
+    total_units = SerializedItem.objects.count()
+
+    # Inventory count per category (number of item types)
     category_counts = InventoryItem.objects.values('category').annotate(
         count=Count('id')
     ).order_by('-count')
@@ -103,10 +161,13 @@ def dashboard(request):
         transaction_type='IN'
     )[:10]
     
-    # Inventory distribution by category (for chart)
+    # Inventory distribution by category (for chart) - use available quantities
     category_distribution = {}
     for item in InventoryItem.objects.all():
-        category_distribution[item.category] = category_distribution.get(item.category, 0) + item.available_quantity()
+        category_distribution[item.category] = (
+            category_distribution.get(item.category, 0)
+            + item.available_quantity()
+        )
     
     # Total available items (sum of all available quantities)
     total_available = 0
@@ -127,7 +188,7 @@ def dashboard(request):
         usage_by_category[category] = usage_by_category.get(category, 0) + transaction.quantity
     
     context = {
-        'total_items': total_items,
+        'total_units': total_units,
         'category_counts': category_counts,
         'total_issued': total_issued,
         'total_increased': total_increased,
@@ -138,47 +199,44 @@ def dashboard(request):
         'category_distribution': json.dumps(category_distribution),
         'available_by_item': json.dumps(available_by_item),
         'usage_by_category': json.dumps(usage_by_category),
-    }
-    
+    }    
     return render(request, 'inventory/dashboard.html', context)
 
 
 @login_required
 def inventory_list(request):
-    """List all inventory items with search and filter"""
     items = InventoryItem.objects.all()
-    
-    # Search functionality
+
     search_query = request.GET.get('search', '')
     if search_query:
         items = items.filter(
             Q(name__icontains=search_query) |
             Q(category__icontains=search_query)
         )
-    
-    # Filter by category
+
     category_filter = request.GET.get('category', '')
     if category_filter:
         items = items.filter(category=category_filter)
-    
-    # Add available quantity to each item
-    for item in items:
+
+    #  Evaluate to list FIRST, then annotate
+    items_list = list(items)
+    for item in items_list:
         item.available_qty = item.available_quantity()
-    
-    # Pagination
-    paginator = Paginator(items, 20)
+
+    # Paginate the annotated list, not the queryset
+    paginator = Paginator(items_list, 20)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
-    
+
     categories = InventoryItem.CATEGORY_CHOICES
-    
+
     context = {
         'page_obj': page_obj,
         'search_query': search_query,
         'category_filter': category_filter,
         'categories': categories,
     }
-    
+
     return render(request, 'inventory/inventory_list.html', context)
 
 
@@ -197,14 +255,11 @@ def inventory_add(request):
             })
         
         try:
+            # the model only has name, category, quantity and created_by
             item = InventoryItem.objects.create(
                 name=name,
                 category=category,
-                price=None,
-                brand=None,
-                imei=None,
-                condition='New',  # Default condition
-                quantity=1,
+                quantity=0,            # start out empty by default
                 created_by=request.user,
             )
             messages.success(request, f'Item "{item.name}" added successfully!')
@@ -237,7 +292,7 @@ def inventory_edit(request, item_id):
         try:
             item.name = name
             item.category = category
-            # Preserve existing values for price, brand, imei, quantity, condition (not editable in UI)
+            # quantity is managed separately; other legacy fields no longer exist
             item.save()
             
             messages.success(request, f'Item "{item.name}" updated successfully!')
@@ -269,27 +324,43 @@ def inventory_delete(request, item_id):
 def stock_out(request):
     """Issue items from inventory (stock-out)"""
     if request.method == 'POST':
-        item_id = request.POST.get('item_id')
+        # item_id may be submitted as a hidden field; if not, fall back to
+        # querystring (some older links used href="?item_id=...").
+        item_id = request.POST.get('item_id') or request.GET.get('item_id')
         quantity = int(request.POST.get('quantity', 1))
+        serialized_id = request.POST.get('serialized_item_id')
         purpose = request.POST.get('purpose', '')
+        date_taken_str = request.POST.get('date_taken', '')
         
         item = get_object_or_404(InventoryItem, id=item_id)
-        available_qty = item.available_quantity()
+        usable_qty = item.usable_quantity()
         
-        # Validation: Cannot issue more than available
-        if quantity > available_qty:
+        # Validation: Cannot issue more than what is actually free to issue
+        if quantity > usable_qty:
             messages.error(request, 
-                f'Cannot issue {quantity} items. Only {available_qty} available.')
+                f'Cannot issue {quantity} items. Only {usable_qty} available for issue.')
             return redirect('inventory:inventory_list')
         
         try:
-            transaction = InventoryTransaction.objects.create(
-                item=item,
-                transaction_type='OUT',
-                quantity=quantity,
-                purpose=purpose,
-                issued_by=request.user,
-            )
+            # Parse the date if provided
+            date_taken = timezone.now()
+            if date_taken_str:
+                from datetime import datetime
+                dt = datetime.fromisoformat(date_taken_str)
+                date_taken = timezone.make_aware(dt) if not dt.tzinfo else dt
+
+            tx_kwargs = {
+                'item': item,
+                'transaction_type': 'OUT',
+                'quantity': quantity,
+                'purpose': purpose,
+                'issued_by': request.user,
+                'date_taken': date_taken,
+            }
+            if serialized_id:
+                tx_kwargs['serialized_item'] = get_object_or_404(SerializedItem, id=serialized_id)
+
+            transaction = InventoryTransaction.objects.create(**tx_kwargs)
             messages.success(request, 
                 f'Issued {quantity} x {item.name} successfully!')
             return redirect('inventory:transactions')
@@ -300,16 +371,23 @@ def stock_out(request):
     item_id = request.GET.get('item_id')
     if item_id:
         item = get_object_or_404(InventoryItem, id=item_id)
+        # items that can actually be chosen for issuing
+        available_items = item.serialized_items.filter(
+            status='Available'
+        ).exclude(condition='Faulty')
         return render(request, 'inventory/stock_out_form.html', {
             'item': item,
-            'available_qty': item.available_quantity(),
+            'available_items': available_items,
+            'available_qty': item.available_quantity(),  # for display if needed
+            'display_available': item.available_quantity(),
         })
-    
+
     # Show all items for selection
     items = InventoryItem.objects.all()
     for item in items:
-        item.available_qty = item.available_quantity()
-    
+        # when listing types we want to indicate how many can be issued
+        item.available_count = item.usable_quantity()
+
     return render(request, 'inventory/stock_out_form.html', {
         'items': items,
     })
@@ -317,28 +395,89 @@ def stock_out(request):
 
 @login_required
 def stock_in(request):
-    """Receive items in inventory (stock-in)"""
+    """Receive items in inventory (stock-in).
+
+    This view serves two purposes depending on whether the user is
+    selecting an item first or already has an ``item_id``.  The form
+    rendered when the user is adding a *serialized* unit contains fields
+    for IMEI, brand, price, condition, etc., and those values need to be
+    propagated back to the view so a ``SerializedItem`` can be created.
+    
+    The original implementation only created an ``InventoryTransaction``
+    and ignored all of the extra form fields which meant the dropdown for
+    ``condition`` never got any data at all.  The fix below passes the
+    condition choices to the template and processes the additional
+    POST data when a serial number is supplied.
+    """
     if request.method == 'POST':
         item_id = request.POST.get('item_id')
-        quantity = int(request.POST.get('quantity', 1))
+        imei = request.POST.get('imei', '').strip()
+        brand = request.POST.get('brand') or None
+        price = request.POST.get('price') or None
+        condition = request.POST.get('condition') or 'New'
+        date_added_str = request.POST.get('date_added', '')
         purpose = request.POST.get('purpose', '')
+        # quantity is only used for legacy (non‑serialized) stock-ins;
+        # keep the parameter so existing code/links continue to work but we
+        # default to 1 since there is no quantity field in the form.
+        quantity = int(request.POST.get('quantity', 1))
+        date_taken_str = request.POST.get('date_taken', '')
         
         item = get_object_or_404(InventoryItem, id=item_id)
         
         try:
-            transaction = InventoryTransaction.objects.create(
-                item=item,
-                transaction_type='IN',
-                quantity=quantity,
-                purpose=purpose,
-                issued_by=request.user,
-            )
-            # Update the base quantity
-            item.quantity += quantity
-            item.save()
-            
-            messages.success(request, 
-                f'Received {quantity} x {item.name} successfully!')
+            # Parse the transaction date if provided
+            date_taken = timezone.now()
+            if date_taken_str:
+                from datetime import datetime
+                dt = datetime.fromisoformat(date_taken_str)
+                date_taken = timezone.make_aware(dt) if not dt.tzinfo else dt
+
+            # if an IMEI is supplied we are dealing with a serialized item
+            if imei:
+                # parse the "date added" field for the serial record
+                date_added = timezone.now()
+                if date_added_str:
+                    from datetime import datetime
+                    dt = datetime.fromisoformat(date_added_str)
+                    date_added = timezone.make_aware(dt) if not dt.tzinfo else dt
+
+                si = SerializedItem.objects.create(
+                    inventory_item=item,
+                    imei=imei,
+                    brand=brand,
+                    price=price,
+                    condition=condition,
+                    date_added=date_added,
+                    status='Available',
+                    created_by=request.user,
+                )
+                # record the corresponding transaction
+                InventoryTransaction.objects.create(
+                    item=item,
+                    serialized_item=si,
+                    transaction_type='IN',
+                    quantity=1,
+                    purpose=purpose,
+                    issued_by=request.user,
+                    date_taken=date_taken,
+                )
+
+                messages.success(request,
+                    f'Received serial {imei} for {item.name}.')
+            else:
+                # legacy behaviour: adjust the item's quantity directly
+                transaction = InventoryTransaction.objects.create(
+                    item=item,
+                    transaction_type='IN',
+                    quantity=quantity,
+                    purpose=purpose,
+                    issued_by=request.user,
+                    date_taken=date_taken,
+                )
+                messages.success(request,
+                    f'Received {quantity} x {item.name} successfully!')
+
             return redirect('inventory:transactions')
         except Exception as e:
             messages.error(request, f'Error receiving item: {str(e)}')
@@ -349,7 +488,10 @@ def stock_in(request):
         item = get_object_or_404(InventoryItem, id=item_id)
         return render(request, 'inventory/stock_in_form.html', {
             'item': item,
-            'current_qty': item.quantity,
+            # for stock‑in the "current" count isn't strictly necessary but
+            # keep it consistent with available stock semantics
+            'current_qty': item.available_quantity(),
+            'conditions': SerializedItem.CONDITION_CHOICES,
         })
     
     # Show all items for selection
@@ -359,6 +501,7 @@ def stock_in(request):
     
     return render(request, 'inventory/stock_in_form.html', {
         'items': items,
+        'conditions': SerializedItem.CONDITION_CHOICES,
     })
 
 
@@ -494,6 +637,57 @@ def reports(request):
     for transaction in items_increased:
         category = transaction.item.category
         increases_by_category[category] = increases_by_category.get(category, 0) + transaction.quantity
+
+    # --- Opening and Closing Balances per item ---
+    # We'll compute net transaction amounts in one pass to avoid many DB queries.
+    transactions_all = InventoryTransaction.objects.select_related('item').all()
+
+    net_since_start = {}   # sum(IN - OUT) for transactions with date >= start
+    net_after_end = {}     # sum(IN - OUT) for transactions with date > end
+
+    for t in transactions_all:
+        try:
+            t_date = t.date_taken.date()
+        except Exception:
+            # fallback if date_taken is naive/unexpected
+            t_date = t.date_taken
+
+        sign = t.quantity if t.transaction_type == 'IN' else -t.quantity
+        item_id = t.item_id
+
+        if t_date >= start:
+            net_since_start[item_id] = net_since_start.get(item_id, 0) + sign
+
+        if t_date > end:
+            net_after_end[item_id] = net_after_end.get(item_id, 0) + sign
+
+    # Build per-item balances
+    item_balances = {}
+    total_opening = 0
+    total_closing = 0
+    for item in InventoryItem.objects.all():
+        # for report purposes we count every serial (even faulty)
+        q_now = item.report_quantity() or 0
+        # Opening = quantity at start of period (before any transactions)
+        opening = q_now - net_since_start.get(item.id, 0)
+        # never allow a negative opening balance
+        if opening < 0:
+            opening = 0
+        # Closing = quantity at end of period (after later transactions)
+        closing = q_now - net_after_end.get(item.id, 0)
+        if closing < 0:
+            closing = 0
+
+        item_balances[item.name] = {
+            'category': item.category,
+            'opening': opening,
+            'closing': closing,
+            'current': q_now,
+            'movement': closing - opening,
+        }
+
+        total_opening += opening
+        total_closing += closing
     
     context = {
         'start_date': start_date,
@@ -506,6 +700,9 @@ def reports(request):
         'usage_per_item': usage_per_item,
         'usage_by_category': usage_by_category,
         'increases_by_category': increases_by_category,
+        'item_balances': item_balances,
+        'total_opening': total_opening,
+        'total_closing': total_closing,
     }
     
     return render(request, 'inventory/reports.html', context)
@@ -825,3 +1022,165 @@ def export_report_excel(request):
     
     wb.save(response)
     return response
+
+
+@login_required
+def bulk_upload_template(request):
+    """
+    Serve an Excel template for bulk uploading serialized items.
+
+    The first worksheet contains the headers plus a single example row.  A
+    hidden second worksheet holds the lookup values used by the data
+    validation lists on the main sheet:
+
+    * column A (item names) = all current ``InventoryItem`` names
+    * column F (condition) uses the codes from ``SerializedItem.CONDITION_CHOICES``
+    """
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Bulk Upload Template"
+
+    headers = ["Item Name", "IMEI", "Brand", "Date Added", "Price", "Condition"]
+    ws.append(headers)
+    # keep one example row for clarity
+    ws.append(["MDVR", "1234567890123", "AHBrands", timezone.now().date().isoformat(), "5000", "New"])
+
+    # hidden lookup sheet for data validation lists
+    lists = wb.create_sheet("lists")
+    lists.sheet_state = 'hidden'
+
+    item_names = list(InventoryItem.objects.values_list('name', flat=True))
+    for idx, name in enumerate(item_names, start=1):
+        lists.cell(row=idx, column=1, value=name)
+    for idx, (code, _) in enumerate(SerializedItem.CONDITION_CHOICES, start=1):
+        lists.cell(row=idx, column=2, value=code)
+
+    from openpyxl.worksheet.datavalidation import DataValidation
+    dv_item = DataValidation(
+        type="list",
+        formula1=f"=lists!$A$1:$A${len(item_names)}",
+        allow_blank=False,
+    )
+    dv_condition = DataValidation(
+        type="list",
+        formula1=f"=lists!$B$1:$B${len(SerializedItem.CONDITION_CHOICES)}",
+        allow_blank=True,
+    )
+    ws.add_data_validation(dv_item)
+    ws.add_data_validation(dv_condition)
+    dv_item.add("A2:A1048576")
+    dv_condition.add("F2:F1048576")
+
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="bulk_upload_template.xlsx"'
+    wb.save(response)
+    return response
+
+
+@login_required
+def bulk_upload(request):
+    """
+    Handle Excel bulk upload of SerializedItem records.
+
+    Expects columns: Item Name, IMEI, Brand, Date Added, Price, Condition.
+    """
+    if request.method == "POST":
+        excel_file = request.FILES.get("excel_file")
+        if not excel_file:
+            messages.error(request, "Please upload an Excel file.")
+            return render(request, "inventory/bulk_upload_form.html")
+
+        from openpyxl import load_workbook
+
+        try:
+            wb = load_workbook(excel_file)
+            ws = wb.active
+        except Exception as exc:
+            messages.error(request, f"Could not read Excel file: {exc}")
+            return render(request, "inventory/bulk_upload_form.html")
+
+        created_count = 0
+        errors = []
+
+        # Skip header row (assume first row is header)
+        for idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+            item_name, imei, brand, date_added, price, condition = row[:6]
+
+            if not item_name or not imei:
+                errors.append(f"Row {idx}: Item Name and IMEI are required.")
+                continue
+
+            try:
+                item = InventoryItem.objects.get(name=item_name)
+            except InventoryItem.DoesNotExist:
+                errors.append(f"Row {idx}: Item '{item_name}' does not exist.")
+                continue
+
+            try:
+                # Parse optional date
+                if date_added:
+                    if isinstance(date_added, str):
+                        try:
+                            parsed_date = datetime.strptime(date_added, "%Y-%m-%d")
+                            aware_date = timezone.make_aware(parsed_date)
+                        except Exception:
+                            errors.append(f"Row {idx}: Invalid date format (use YYYY-MM-DD).")
+                            continue
+                    else:
+                        aware_date = timezone.make_aware(date_added) if timezone.is_naive(date_added) else date_added
+                else:
+                    aware_date = timezone.now()
+
+                si = SerializedItem.objects.create(
+                    inventory_item=item,
+                    imei=str(imei),
+                    brand=brand or None,
+                    date_added=aware_date,
+                    price=price or None,
+                    condition=condition or "New",
+                    status="Available",
+                    created_by=request.user,
+                )
+                # also create a matching stock‑in transaction so the dashboard
+                # and reports will pick up the receipt immediately
+                InventoryTransaction.objects.create(
+                    item=item,
+                    serialized_item=si,
+                    transaction_type='IN',
+                    quantity=1,
+                    date_taken=aware_date,
+                    issued_by=request.user,
+                )
+                created_count += 1
+            except Exception as exc:
+                errors.append(f"Row {idx}: {exc}")
+
+        if created_count:
+            messages.success(request, f"Successfully created {created_count} item(s).")
+        if errors:
+            messages.error(request, "Some rows could not be imported:\n" + "\n".join(errors))
+
+        return render(request, "inventory/bulk_upload_form.html")
+
+    # GET request
+    return render(request, "inventory/bulk_upload_form.html")
+
+
+@login_required
+def inventory_item_detail(request, item_id):
+    """
+    Detail view for a single InventoryItem, including serialized items.
+    """
+    item = get_object_or_404(InventoryItem, id=item_id)
+    serialized_items = item.serialized_items.all().order_by("-date_added")
+    return render(
+        request,
+        "inventory/inventory_item_detail.html",
+        {
+            "item": item,
+            "serialized_items": serialized_items,
+            "available_qty": getattr(item, "available_quantity", lambda: item.quantity)(),
+        },
+    )

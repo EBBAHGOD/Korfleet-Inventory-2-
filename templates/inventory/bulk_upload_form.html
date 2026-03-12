@@ -1,0 +1,136 @@
+{% extends 'inventory/base.html' %}
+
+{% block title %}Bulk Upload Items - Korfleet{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <h1>Bulk Upload Items</h1>
+    
+    <div class="alert alert-info">
+        <strong>Instructions:</strong>
+        <ol>
+            <li>Download the template using the button below</li>
+            <li>Fill in the Excel file with your items (IMEI must be unique)</li>
+            <li>Upload the file here</li>
+            <li>Review the results and errors if any</li>
+        </ol>
+    </div>
+    
+    <div class="form-actions" style="margin-bottom: 30px;">
+        <a href="{% url 'inventory:bulk_upload_template' %}" class="btn btn-success" target="_blank">
+            📥 Download Template
+        </a>
+    </div>
+    
+    <form method="post" enctype="multipart/form-data" class="form">
+        {% csrf_token %}
+        
+        <div class="form-group">
+            <label for="excel_file">Upload Excel File <span class="required">*</span></label>
+            <input type="file" id="excel_file" name="excel_file" accept=".xlsx,.xls" required class="form-control">
+            <small class="form-text">Supported formats: .xlsx, .xls</small>
+        </div>
+        
+        <div class="form-group">
+            <label>Expected File Columns:</label>
+            <ul>
+                <li><strong>Item Name</strong> - Name of the item unit (e.g., MDVR)</li>
+                <li><strong>IMEI</strong> - Unique identifier (Required, must be unique)</li>
+                <li><strong>Brand</strong> - Manufacturer/brand (Optional)</li>
+                <li><strong>Date Added</strong> - Date of addition (Optional, format: YYYY-MM-DD)</li>
+                <li><strong>Price</strong> - Item price (Optional)</li>
+                <li><strong>Condition</strong> - New, Used, or Faulty (Default: New)</li>
+            </ul>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Upload File</button>
+            <a href="{% url 'inventory:stock_in' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+    
+    <hr>
+    
+    <h3>Template Preview</h3>
+    <div class="table-responsive">
+        <table class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Item Name</th>
+                    <th>IMEI</th>
+                    <th>Brand</th>
+                    <th>Date Added</th>
+                    <th>Price</th>
+                    <th>Condition</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>MDVR</td>
+                    <td>1234567890123</td>
+                    <td>AHBrands</td>
+                    <td>2026-03-01</td>
+                    <td>5000</td>
+                    <td>New</td>
+                </tr>
+                <tr class="text-muted" style="opacity: 0.5;">
+                    <td>Camera</td>
+                    <td>9876543210987</td>
+                    <td>CamCorp</td>
+                    <td>2026-02-28</td>
+                    <td>2500</td>
+                    <td>Used</td>
+                </tr>
+                <tr class="text-muted" style="opacity: 0.5;">
+                    <td>SIM Card</td>
+                    <td>5555555555555</td>
+                    <td>SIMCo</td>
+                    <td>2026-03-01</td>
+                    <td>500</td>
+                    <td>New</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="alert alert-warning" style="margin-top: 20px;">
+        <strong>Important Notes:</strong>
+        <ul>
+            <li>Each row must have a unique IMEI</li>
+            <li>Item Name must match an existing item in the system</li>
+            <li>Date format must be YYYY-MM-DD</li>
+            <li>Price is optional (can be left blank)</li>
+            <li>Condition options: New, Used, Faulty (defaults to New if blank)</li>
+        </ul>
+    </div>
+</div>
+
+<style>
+    .form-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    
+    .alert-info {
+        background-color: #e7f3ff;
+        border: 1px solid #b3d9ff;
+        color: #004085;
+        padding: 12px 20px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+    
+    .alert-info ol {
+        margin: 10px 0 0 20px;
+    }
+    
+    .alert-info li {
+        margin: 5px 0;
+    }
+    
+    .text-muted {
+        color: #6c757d;
+    }
+</style>
+{% endblock %}
